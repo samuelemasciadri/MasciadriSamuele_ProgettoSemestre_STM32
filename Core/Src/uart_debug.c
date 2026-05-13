@@ -1,8 +1,8 @@
 /*************************************************************************//**
  *
  *    @file           uart_debug.c
- *    @date           12.05.2026
- *    @version        0.2.0
+ *    @date           13.05.2026
+ *    @version        0.3.0
  *
  *    @author         Samuele Masciadri
  *
@@ -18,7 +18,7 @@
  *                      - 1 stop bit
  *
  *                    RX is managed by interrupt, therefore the main while(1)
- *                    loop can remain empty.
+ *                    loop is used only for periodic background tasks.
  *
  *                    Supported commands:
  *                      - help
@@ -30,6 +30,8 @@
  *                      - yellowLED_off
  *                      - toggleLEDs
  *                      - readADC
+ *                      - streamADC_on
+ *                      - streamADC_off
  *                      - readSPI_TMP
  *                      - readTMP_ID
  *                      - readI2C
@@ -40,12 +42,14 @@
 #include "uart_debug.h"
 #include "gpio_debug.h"
 #include "tmp126.h"
+#include "analog_temp.h"
 #include <string.h>
 #include <stdio.h>
 
 /* Private defines -----------------------------------------------------------*/
 
 #define UART_RX_BUFFER_SIZE     64U
+#define UART_STREAM_PERIOD_MS   1000U
 
 /* Private data types --------------------------------------------------------*/
 
@@ -57,11 +61,15 @@ static uint8_t rx_byte = 0U;
 static char rx_buffer[UART_RX_BUFFER_SIZE];
 static uint8_t rx_index = 0U;
 
+static uint8_t adc_stream_enabled = 0U;
+
 /* Private function prototypes -----------------------------------------------*/
 
 static void uart_debug_send_string(const char *msg);
 static void uart_debug_process_command(char *cmd);
 static void uart_debug_clear_buffer(void);
+
+static void uart_debug_format_adc(char *msg, uint32_t msg_size);
 static void uart_debug_format_tmp126_temperature(char *msg, uint32_t msg_size);
 static void uart_debug_format_centi_temperature(char *dst,
                                                 uint32_t dst_size,
@@ -85,6 +93,34 @@ void uart_debug_init(void)
     uart_debug_send_string("Type help for command list\r\n");
 
     HAL_UART_Receive_IT(&huart1, &rx_byte, 1U);
+}
+
+/******************************************************************************/
+/*!
+ *    @brief  Periodic UART debug task.
+ *            Used to stream ADC values without blocking UART RX interrupt.
+ *
+ *    @param  None
+ *    @retval None
+ */
+void uart_debug_task(void)
+{
+    static uint32_t last_tick = 0U;
+
+    if (adc_stream_enabled == 0U)
+    {
+        return;
+    }
+
+    if ((HAL_GetTick() - last_tick) >= UART_STREAM_PERIOD_MS)
+    {
+        char msg[96];
+
+        last_tick = HAL_GetTick();
+
+        uart_debug_format_adc(msg, sizeof(msg));
+        uart_debug_send_string(msg);
+    }
 }
 
 /******************************************************************************/
@@ -177,7 +213,20 @@ static void uart_debug_process_command(char *cmd)
     }
     else if (strcmp(cmd, "readADC") == 0)
     {
-        uart_debug_send_string("AnalogSensor Temp value = TBD\r\n");
+        char msg[96];
+
+        uart_debug_format_adc(msg, sizeof(msg));
+        uart_debug_send_string(msg);
+    }
+    else if (strcmp(cmd, "streamADC_on") == 0)
+    {
+        adc_stream_enabled = 1U;
+        uart_debug_send_string("ADC stream enabled\r\n");
+    }
+    else if (strcmp(cmd, "streamADC_off") == 0)
+    {
+        adc_stream_enabled = 0U;
+        uart_debug_send_string("ADC stream disabled\r\n");
     }
     else if (strcmp(cmd, "readSPI_TMP") == 0)
     {
@@ -217,6 +266,8 @@ static void uart_debug_process_command(char *cmd)
             "  yellowLED_off\r\n"
             "  toggleLEDs\r\n"
             "  readADC\r\n"
+            "  streamADC_on\r\n"
+            "  streamADC_off\r\n"
             "  readSPI_TMP\r\n"
             "  readTMP_ID\r\n"
             "  readI2C\r\n"
@@ -226,6 +277,37 @@ static void uart_debug_process_command(char *cmd)
     {
         uart_debug_send_string("Unknown command\r\n");
     }
+}
+
+/******************************************************************************/
+/*!
+ *    @brief  Formats ADC value and LM235 estimated temperature.
+ *
+ *    @param  msg Destination string
+ *    @param  msg_size Destination string size
+ *    @retval None
+ */
+static void uart_debug_format_adc(char *msg, uint32_t msg_size)
+{
+    uint32_t raw;
+    uint32_t voltage_mv;
+    int32_t temp_centi;
+    char temp_string[16];
+
+    raw = analog_temp_read_raw();
+    voltage_mv = analog_temp_raw_to_millivolts(raw);
+    temp_centi = analog_temp_millivolts_to_centi_celsius(voltage_mv);
+
+    uart_debug_format_centi_temperature(temp_string,
+                                        sizeof(temp_string),
+                                        temp_centi);
+
+    snprintf(msg,
+             msg_size,
+             "ADC raw=%lu, voltage=%lu mV, LM235=%s C\r\n",
+             raw,
+             voltage_mv,
+             temp_string);
 }
 
 /******************************************************************************/

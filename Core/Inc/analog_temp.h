@@ -1,23 +1,26 @@
 /*************************************************************************//**
  *
- *    @file           uart_debug.h
+ *    @file           analog_temp.h
  *    @date           13.05.2026
- *    @version        0.3.0
+ *    @version        0.1.0
  *
  *    @author         Samuele Masciadri
  *
  ******************************************************************************
  *
- *    @brief          Header file for UART debug command interface.
- *                    Commands are received through USART1 using interrupt mode.
+ *    @brief          Header file for analog temperature sensor driver.
+ *
+ *                    The analog temperature sensor is connected to PA0,
+ *                    configured as ADC_IN0.
  *
  ******************************************************************************/
 
-#ifndef INC_UART_DEBUG_H_
-#define INC_UART_DEBUG_H_
+#ifndef INC_ANALOG_TEMP_H_
+#define INC_ANALOG_TEMP_H_
 
 /* Public includes -----------------------------------------------------------*/
 #include "main.h"
+#include <stdint.h>
 
 /* Public defines ------------------------------------------------------------*/
 
@@ -27,9 +30,15 @@
 
 /* Public function prototypes ------------------------------------------------*/
 
-void uart_debug_init(void);
-void uart_debug_task(void);
+void analog_temp_init(ADC_HandleTypeDef *hadc);
 
-#endif /* INC_UART_DEBUG_H_ */
+uint32_t analog_temp_read_raw(void);
+uint32_t analog_temp_raw_to_millivolts(uint32_t raw);
+int32_t analog_temp_millivolts_to_centi_celsius(uint32_t voltage_mv);
+
+float analog_temp_read_voltage(void);
+float analog_temp_read_lm235_celsius(void);
+
+#endif /* INC_ANALOG_TEMP_H_ */
 
 /****** END OF FILE ***********************************************************/

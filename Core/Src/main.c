@@ -24,6 +24,7 @@
 #include "gpio_debug.h"
 #include "uart_debug.h"
 #include "tmp126.h"
+#include "analog_temp.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,6 +98,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   gpio_debug_init();
   tmp126_init();
+  analog_temp_init(&hadc);
   uart_debug_init();
   /* USER CODE END 2 */
 
@@ -107,14 +109,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-    /*
-     * Phase 1:
-     * TMP126 driver is initialised.
-     * UART commands are still managed by interrupt.
-     * ADC streaming is not implemented yet.
-     */
-
+    uart_debug_task();
   }
   /* USER CODE END 3 */
 }
