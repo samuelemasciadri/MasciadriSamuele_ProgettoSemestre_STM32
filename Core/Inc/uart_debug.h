@@ -1,8 +1,8 @@
 /*************************************************************************//**
  *
  *    @file           uart_debug.h
- *    @date           05.05.2026
- *    @version        0.1.0
+ *    @date           12.05.2026
+ *    @version        0.2.0
  *
  *    @author         Samuele Masciadri
  *
@@ -30,3 +30,5 @@
 void uart_debug_init(void);
 
 #endif /* INC_UART_DEBUG_H_ */
+
+/****** END OF FILE ***********************************************************/

@@ -1,8 +1,8 @@
 /*************************************************************************//**
  *
  *    @file           uart_debug.c
- *    @date           05.05.2026
- *    @version        0.1.0
+ *    @date           12.05.2026
+ *    @version        0.2.0
  *
  *    @author         Samuele Masciadri
  *
@@ -21,6 +21,7 @@
  *                    loop can remain empty.
  *
  *                    Supported commands:
+ *                      - help
  *                      - redLED_on
  *                      - greenLED_on
  *                      - yellowLED_on
@@ -30,6 +31,7 @@
  *                      - toggleLEDs
  *                      - readADC
  *                      - readSPI_TMP
+ *                      - readTMP_ID
  *                      - readI2C
  *
  ******************************************************************************/
@@ -37,11 +39,13 @@
 /* Private includes ----------------------------------------------------------*/
 #include "uart_debug.h"
 #include "gpio_debug.h"
+#include "tmp126.h"
 #include <string.h>
+#include <stdio.h>
 
 /* Private defines -----------------------------------------------------------*/
 
-#define UART_RX_BUFFER_SIZE     32U
+#define UART_RX_BUFFER_SIZE     64U
 
 /* Private data types --------------------------------------------------------*/
 
@@ -58,6 +62,10 @@ static uint8_t rx_index = 0U;
 static void uart_debug_send_string(const char *msg);
 static void uart_debug_process_command(char *cmd);
 static void uart_debug_clear_buffer(void);
+static void uart_debug_format_tmp126_temperature(char *msg, uint32_t msg_size);
+static void uart_debug_format_centi_temperature(char *dst,
+                                                uint32_t dst_size,
+                                                int32_t temp_centi);
 
 /* Exported functions --------------------------------------------------------*/
 
@@ -73,7 +81,8 @@ void uart_debug_init(void)
 {
     uart_debug_clear_buffer();
 
-    uart_debug_send_string("UART debug ready\r\n");
+    uart_debug_send_string("\r\nUART debug ready\r\n");
+    uart_debug_send_string("Type help for command list\r\n");
 
     HAL_UART_Receive_IT(&huart1, &rx_byte, 1U);
 }
@@ -168,20 +177,117 @@ static void uart_debug_process_command(char *cmd)
     }
     else if (strcmp(cmd, "readADC") == 0)
     {
-        uart_debug_send_string("AnalogSensor Temp value = \r\n");
+        uart_debug_send_string("AnalogSensor Temp value = TBD\r\n");
     }
     else if (strcmp(cmd, "readSPI_TMP") == 0)
     {
-        uart_debug_send_string("DigitalSensor Temp value = \r\n");
+        char msg[96];
+
+        uart_debug_format_tmp126_temperature(msg, sizeof(msg));
+        uart_debug_send_string(msg);
+    }
+    else if (strcmp(cmd, "readTMP_ID") == 0)
+    {
+        char msg[64];
+        uint16_t device_id;
+
+        device_id = tmp126_read_device_id();
+
+        snprintf(msg,
+                 sizeof(msg),
+                 "TMP126 Device ID = 0x%04X\r\n",
+                 device_id);
+
+        uart_debug_send_string(msg);
     }
     else if (strcmp(cmd, "readI2C") == 0)
     {
         uart_debug_send_string("TBD = \r\n");
     }
+    else if (strcmp(cmd, "help") == 0)
+    {
+        uart_debug_send_string(
+            "Commands:\r\n"
+            "  help\r\n"
+            "  redLED_on\r\n"
+            "  greenLED_on\r\n"
+            "  yellowLED_on\r\n"
+            "  redLED_off\r\n"
+            "  greenLED_off\r\n"
+            "  yellowLED_off\r\n"
+            "  toggleLEDs\r\n"
+            "  readADC\r\n"
+            "  readSPI_TMP\r\n"
+            "  readTMP_ID\r\n"
+            "  readI2C\r\n"
+        );
+    }
     else
     {
         uart_debug_send_string("Unknown command\r\n");
     }
+}
+
+/******************************************************************************/
+/*!
+ *    @brief  Formats TMP126 raw value and temperature.
+ *
+ *    @param  msg Destination string
+ *    @param  msg_size Destination string size
+ *    @retval None
+ */
+static void uart_debug_format_tmp126_temperature(char *msg, uint32_t msg_size)
+{
+    uint16_t raw;
+    int32_t temp_centi;
+    char temp_string[16];
+
+    raw = tmp126_read_raw_temperature();
+    temp_centi = tmp126_raw_to_centi_celsius(raw);
+
+    uart_debug_format_centi_temperature(temp_string,
+                                        sizeof(temp_string),
+                                        temp_centi);
+
+    snprintf(msg,
+             msg_size,
+             "TMP126 raw=0x%04X, temp=%s C\r\n",
+             raw,
+             temp_string);
+}
+
+/******************************************************************************/
+/*!
+ *    @brief  Formats a centi-Celsius temperature as signed decimal string.
+ *
+ *    @param  dst Destination string
+ *    @param  dst_size Destination string size
+ *    @param  temp_centi Temperature in centi-Celsius
+ *    @retval None
+ */
+static void uart_debug_format_centi_temperature(char *dst,
+                                                uint32_t dst_size,
+                                                int32_t temp_centi)
+{
+    char sign = '+';
+    uint32_t abs_temp;
+
+    if (temp_centi < 0)
+    {
+        sign = '-';
+        abs_temp = (uint32_t)(-temp_centi);
+    }
+    else
+    {
+        abs_temp = (uint32_t)temp_centi;
+    }
+
+    snprintf(dst,
+             dst_size,
+             "%c%lu.%02lu",
+             sign,
+             abs_temp / 100U,
+             abs_temp % 100U);
 }
 
 /******************************************************************************/
