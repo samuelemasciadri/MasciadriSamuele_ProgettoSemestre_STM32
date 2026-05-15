@@ -25,6 +25,8 @@
 #include "uart_debug.h"
 #include "tmp126.h"
 #include "analog_temp.h"
+#include "sw_i2c.h"
+#include "pcf8575.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -100,6 +102,7 @@ int main(void)
   gpio_debug_init();
   tmp126_init();
   analog_temp_init(&hadc);
+  pcf8575_init(PCF8575_DEFAULT_ADDRESS);
   uart_debug_init();
   /* USER CODE END 2 */
 
