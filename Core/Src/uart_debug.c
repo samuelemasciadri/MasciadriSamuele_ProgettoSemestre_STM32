@@ -1,8 +1,8 @@
 /*************************************************************************//**
  *
  *    @file           uart_debug.c
- *    @date           13.05.2026
- *    @version        0.3.0
+ *    @date           15.05.2026
+ *    @version        0.4.0
  *
  *    @author         Samuele Masciadri
  *
@@ -34,7 +34,11 @@
  *                      - streamADC_off
  *                      - readSPI_TMP
  *                      - readTMP_ID
+ *                      - scanI2C
  *                      - readI2C
+ *                      - writeI2C_high
+ *                      - writeI2C_low
+ *                      - toggleI2C
  *
  ******************************************************************************/
 
@@ -43,6 +47,7 @@
 #include "gpio_debug.h"
 #include "tmp126.h"
 #include "analog_temp.h"
+#include "pcf8575.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -249,9 +254,75 @@ static void uart_debug_process_command(char *cmd)
 
         uart_debug_send_string(msg);
     }
+    else if (strcmp(cmd, "scanI2C") == 0)
+    {
+        char msg[64];
+        uint8_t address;
+
+        if (pcf8575_scan(&address) != 0U)
+        {
+            snprintf(msg,
+                     sizeof(msg),
+                     "I2C device found at 0x%02X\r\n",
+                     address);
+            uart_debug_send_string(msg);
+        }
+        else
+        {
+            uart_debug_send_string("No I2C device found\r\n");
+        }
+    }
     else if (strcmp(cmd, "readI2C") == 0)
     {
-        uart_debug_send_string("TBD = \r\n");
+        char msg[64];
+        uint16_t value;
+
+        if (pcf8575_read(&value) != 0U)
+        {
+            snprintf(msg,
+                     sizeof(msg),
+                     "PCF8575 input = 0x%04X, INT=%u\r\n",
+                     value,
+                     pcf8575_read_int_pin());
+            uart_debug_send_string(msg);
+        }
+        else
+        {
+            uart_debug_send_string("PCF8575 read error\r\n");
+        }
+    }
+    else if (strcmp(cmd, "writeI2C_high") == 0)
+    {
+        if (pcf8575_write(0xFFFFU) != 0U)
+        {
+            uart_debug_send_string("PCF8575 output = 0xFFFF\r\n");
+        }
+        else
+        {
+            uart_debug_send_string("PCF8575 write error\r\n");
+        }
+    }
+    else if (strcmp(cmd, "writeI2C_low") == 0)
+    {
+        if (pcf8575_write(0x0000U) != 0U)
+        {
+            uart_debug_send_string("PCF8575 output = 0x0000\r\n");
+        }
+        else
+        {
+            uart_debug_send_string("PCF8575 write error\r\n");
+        }
+    }
+    else if (strcmp(cmd, "toggleI2C") == 0)
+    {
+        if (pcf8575_toggle() != 0U)
+        {
+            uart_debug_send_string("PCF8575 output toggled\r\n");
+        }
+        else
+        {
+            uart_debug_send_string("PCF8575 toggle error\r\n");
+        }
     }
     else if (strcmp(cmd, "help") == 0)
     {
@@ -270,7 +341,11 @@ static void uart_debug_process_command(char *cmd)
             "  streamADC_off\r\n"
             "  readSPI_TMP\r\n"
             "  readTMP_ID\r\n"
+            "  scanI2C\r\n"
             "  readI2C\r\n"
+            "  writeI2C_high\r\n"
+            "  writeI2C_low\r\n"
+            "  toggleI2C\r\n"
         );
     }
     else
