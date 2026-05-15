@@ -22,7 +22,7 @@
 /* Private defines -----------------------------------------------------------*/
 
 #define ANALOG_TEMP_ADC_MAX_VALUE       4095U
-#define ANALOG_TEMP_VREF_MV             3300U
+#define ANALOG_TEMP_VREF_MV             3439U
 
 #define KELVIN_OFFSET_CENTI             27315L
 
